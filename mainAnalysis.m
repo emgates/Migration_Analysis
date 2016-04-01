@@ -69,12 +69,13 @@ points = edgeBoundary(mask,x,y,z);
 PIVfolder = fullfile(tifFolder,'PIV_images');
 mkdir_no_err(PIVfolder);
 for k = 1:z
+    temp = PIV_vectors(PIV_vectors(:,5)==k,1:4);
     figure('Visible','off')
     imshow(imadjust(data(:,:,k)))
     hold on
-    quiver(PIV_vectors(:,3),PIV_vectors(:,4),...
-        PIV_vectors(:,1),PIV_vectors(:,2),'LineWidth',2);
-    saveas(gcf,fullfile(PIVfolder, ['PIV_' int2str(k) '.png'])]);
+    quiver(temp(:,3),temp(:,4),...
+        temp(:,1),temp(:,2),'r','LineWidth',2);
+    saveas(gcf,fullfile(PIVfolder, ['PIV_' int2str(k) '.png']));
 end
 
 %% Curve Fitting to Leading Edge
