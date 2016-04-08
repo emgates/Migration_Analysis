@@ -17,7 +17,7 @@ Function workflow:
 close all
 
 %% Establish necessary paths
-addpath(genpath('../'));
+addpath(genpath('./'));
 
 %% User input and data import
 % Import files from specified directory
@@ -34,12 +34,12 @@ clc
 
 % Rotate image to satisfy edge identification code
 % Cells should migrate left to right across the screen for this code
-imshow3D(data);
+imshow(imadjust(data(:,:,1)),'InitialMagnification',50);
 data = rotateImage(data);
+clear disp
 clc
 close
 % Segment movie to meet appropriate criteria
-imshow3D(data);
 [data, datetime] = segmentMovie(data, datetime);
 % Convert datetime to elapsed time (rather than absolute), in hours
 datetime = (datetime-datetime(1))*24;
@@ -55,8 +55,6 @@ tog = input('Please enter filename for output: ','s');
 %% Edge Finder (complements of MEB)
 % Use covariance filter to create mask of cells
 [y,x,z] = size(data);
-mask = zeros(y,x,z); % Binary mask
-points = cell(1,z); % Edge mask only
 
 % Edge ID
 mask = edgeID(data,y,x,z);
@@ -64,20 +62,25 @@ mask = edgeID(data,y,x,z);
 points = edgeBoundary(mask,x,y,z);
 
 %% PIV Analysis (adopted from PIVlab)
-[PIV_vectors, PIV_theta] = PIVAngles(data,mask);
+step = input('Please enter PIV increment (usually 1): ');
+[PIV_vectors, PIV_theta] = PIVAngles(data,mask,step);
 % Write PIV to folder
+%%%%%%%%% Add tic toc functionality here, too.
 PIVfolder = fullfile(tifFolder,'PIV_images');
 mkdir_no_err(PIVfolder);
-for k = 1:z
-    temp = PIV_vectors(PIV_vectors(:,5)==k,1:4);
+close all
+iptsetpref('ImshowBorder','tight');
+parfor k = 1:z-step
     figure('Visible','off')
-    imshow(imadjust(data(:,:,k)))
+    temp = PIV_vectors(PIV_vectors(:,5)==k,1:4);
+    imshow(imadjust(data(:,:,k)),'InitialMagnification',50)
     hold on
-    quiver(temp(:,3),temp(:,4),...
-        temp(:,1),temp(:,2),'r','LineWidth',2);
-    saveas(gcf,fullfile(PIVfolder, ['PIV_' int2str(k) '.png']));
+    quiver(temp(:,1),temp(:,2),...
+        10*temp(:,3),10*temp(:,4),'g','LineWidth',2,'AutoScale','off');
+    set(gca,'position',[0 0 1 1],'units','normalized')
+    print(fullfile(PIVfolder, ['PIV_' int2str(k) '.png']),'-dpng','-r200');
+    close
 end
-
 %% Curve Fitting to Leading Edge
 coeffs = edgeFit(points,z);
 
@@ -142,13 +145,13 @@ saveas(gcf, fullfile(tifFolder,[tog '-analysis.svg']));
 save(fullfile(tifFolder, [tog '-analysis.mat']),...
     'datetime','mask','points','coeffs',...
     'dA_orig', 'dA_line', 'fitLength', 'contourLength',...
-    'lineTheta', 'r2','PIV_vectors','PIV_theta');
+    'lineTheta', 'r2','PIV_vectors','PIV_theta','step');
 
 %% Create movie visualization
 % Create visualization
 fprintf('Creating movie visualization...');
 tic
-visual = visualize(data,mask,coeffs, PIV_vectors);
+visual = visualize(data,mask,coeffs);
 % Write to file
 v = VideoWriter(fullfile(tifFolder,[tog '.avi']));
 v.FrameRate = 15;
@@ -195,7 +198,7 @@ toc
 end
 
 %% visualize
-function [visual] = visualize(data, hilite, coeffs, PIV_vectors)
+function [visual] = visualize(data, hilite, coeffs)
 visual = zeros([size(data,1) size(data,2) 3 size(data,3)]);
 for k = 1:size(data,3)
     y = 1:size(data,1);
